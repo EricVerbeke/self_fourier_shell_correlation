@@ -1,1 +1,1 @@
-# single_signal_fourier_shell_correlation
+# self_fourier_shell_correlation
