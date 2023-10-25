@@ -2,7 +2,7 @@
 Author: Eric Verbeke
 """
 
-
+import time
 import numpy as np
 import scipy.ndimage as ndi
 from scipy.special import jv
@@ -26,6 +26,16 @@ def ftn(array):
 
 def iftn(array):
     return np.fft.ifftn(np.fft.ifftshift(array)).real
+
+
+def open_mrc(mrc_file, return_voxel=False):
+    with mrcfile.open(mrc_file) as mrc:
+        v = mrc.data
+        voxel = mrc.voxel_size.x
+        mrc.close()
+        if return_voxel:
+            v = [v, voxel]
+    return x
 
 
 def radial_distance_grid(shape):
@@ -226,6 +236,7 @@ def single_image_frc(image, rmax, n_splits=1, whiten_upsample=False):
             Y1 = ft2(y1)
             Y2 = phase_shift_2d(ft2(y2), shifts[i][0], shifts[i][1])
             
+            
             if whiten_upsample:
                 corr = compute_fourier_shell_correlation(Y1, Y2, rmax, whiten_upsample=True)
             else:
@@ -267,7 +278,13 @@ def single_volume_fsc(volume, rmax, n_splits=1, whiten_upsample=False):
     n_splits is number of dimensions to split into even and odd terms (only supports 1 and 3).
     Returns array of correlations.
     """
-    corrs = []   
+    corrs = []
+    
+    shape = volume.shape
+    center = shape[0] // 2
+    
+    lb = center - rmax
+    ub = center + rmax
     
     if n_splits == 1:
         
@@ -283,6 +300,17 @@ def single_volume_fsc(volume, rmax, n_splits=1, whiten_upsample=False):
             Y1 = ftn(y1)
             Y2 = phase_shift_3d(ftn(y2), shifts[i][0], shifts[i][1], shifts[i][2])
             
+            # crop to rmax to speed up FSC, fix this style later, add this to 2D as well
+            if i == 0:
+                Y1 = Y1[lb:ub, lb:ub, :]
+                Y2 = Y2[lb:ub, lb:ub, :]
+            elif i == 1:
+                Y1 = Y1[lb:ub, :, lb:ub]
+                Y2 = Y2[lb:ub, :, lb:ub]
+            elif i == 2:
+                Y1 = Y1[:, lb:ub, lb:ub]
+                Y2 = Y2[:, lb:ub, lb:ub]
+                
             if whiten_upsample:
                 corr = compute_fourier_shell_correlation(Y1, Y2, rmax, whiten_upsample=True)
             else:
@@ -290,7 +318,7 @@ def single_volume_fsc(volume, rmax, n_splits=1, whiten_upsample=False):
 
             corrs.append(corr)
         
-    if n_splits == 3:
+    elif n_splits == 3:
         
         rmax = rmax // 2    
         a = get_shifts(d=3)
